@@ -17,7 +17,7 @@ import httpx
 
 
 
-## CODE OPTIMIZATION 
+## 6. CODE OPTIMIZATION 
 ## For million of API requests per day replace ORS client library -> httpx.AsyncClient . 
 ## The function needs to be be asynchronous to handle large number of requests in a non-blocking manner.
 

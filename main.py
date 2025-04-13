@@ -21,7 +21,7 @@ ORS_API_KEY = os.getenv("ORS_API_KEY")
 app = FastAPI()
 app.middleware("http")(log_requests)
 
-# CORS middleware 
+# 7. Protecting API against malicious users using CORS middleware for security
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -36,7 +36,7 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*", "localhost"])
 # Redirecting HTTP to HTTPS, for prod in future
 # app.add_middleware(HTTPSRedirectMiddleware)
 
-# Security headers middleware
+# Custom Security middleware to add security headers to all responses
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -47,27 +47,30 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
+# FastAPI event to initialize Redis rate limiter on startup
 @app.on_event("startup")
 async def startup_event():
     await init_redis_rate_limiter()
 
+# Root endpoint
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the SEPTA API!"}
 
-
+## 2. API that finds the nearest station on the basis of given latitude and longitude
 @app.get("/nearest_station", dependencies=[Depends(api_verification), Depends(rate_limit_free_hourly)] )
-# Turning this function asynchronous to handle million users in a non-blocking, fast and efficient manner
-async def nearest_station(lat: float, lon: float):
 
+async def nearest_station(lat: float, lon: float):  # 6. Turning this function asynchronous to handle million users in a non-blocking, fast and efficient manner
+
+    # 5. Latitude and longitude validation check. Returns sensible API for anybody using from any place
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         raise HTTPException(status_code=400, detail="Invalid coordinates")
 
-    location_key = f"{lat:.4f}_{lon:.4f}"
+    location_key = f"{lat:.4f}_{lon:.4f}" # 5. Rounding the coordinates to 4 decimal place precision point 
 
     cached_data = get_cached_data(location_key)
 
-    # Checking if the requested data is already in cache. If yes, returning requests from cache without depleting API for the same request 
+    # 4. Checking if the requested data is already in cache. If yes, returning requests from cache without depleting API for the same request 
     if cached_data:
         return {
             "cached": True,
@@ -75,7 +78,7 @@ async def nearest_station(lat: float, lon: float):
             "data": cached_data 
         }
 
-    # Implementing Redis locking mechanism to ensure API does not search for same location more than once
+    # 3. Implementing Redis locking mechanism to ensure API does not search for same location more than once
     with location_lock(lat, lon):
         stations_data = get_septa_data('data/septa.kmz')
 
@@ -92,8 +95,8 @@ async def nearest_station(lat: float, lon: float):
         if not nearest_station:
             raise HTTPException(status_code=404, detail="No nearby station found")
 
-            # Awaiting get_walking_directions for async optimization 
         try:
+            # Awaiting get_walking_directions for async optimization 
             walking_route = await get_walking_directions(
                 [lon, lat],  
                 [station_lon, station_lat], 
@@ -102,7 +105,7 @@ async def nearest_station(lat: float, lon: float):
         except Exception as e:
             raise HTTPException(status_code=502, detail=f"Failed to get walking directions: {str(e)}")
 
-
+        # Returning the result in GeoJSON format
         result = {
             "type": "FeatureCollection",
             "features": [
@@ -125,6 +128,7 @@ async def nearest_station(lat: float, lon: float):
             ]
         }
 
+        # Caching the result to Redis before returning the result
         cache_data(location_key, result)
 
         return {

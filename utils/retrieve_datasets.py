@@ -1,7 +1,3 @@
-'''
-this file is just to parse and load teh data.
-'''
-
 import zipfile
 import xml.etree.ElementTree as ET
 import json
