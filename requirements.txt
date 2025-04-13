@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+requests
+geopy
+lxml
+aioredis
+haversine
+openrouteservice
+httpx
+redis
+fastapi_limiter
+pytest
